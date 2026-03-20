@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <random>
 #include <sstream>
 #include <string>
@@ -17,6 +16,7 @@
 #include <onnxruntime/core/session/onnxruntime_cxx_api.h>
 #include <unsupported/Eigen/CXX11/Tensor>
 #include "demucs.hpp"
+#include "logging.hpp"
 
 // At global/class scope
 static std::random_device rd;  // Get entropy for seed
@@ -69,7 +69,7 @@ Eigen::Tensor3dXf demucsonnx::demucs_inference(
     // Generate random shift offset for time invariance
     std::uniform_int_distribution<> dist(0, max_shift - 1);
     int shift_offset = dist(gen);
-    std::cout << "shift offset is: " << shift_offset << std::endl;
+    DEMUCS_LOG_INFO("Time-invariant shift offset: " << shift_offset);
 
     // Create a block view for shifted_audio to avoid extra allocation
     int shifted_length = length + max_shift - shift_offset;

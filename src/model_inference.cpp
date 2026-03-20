@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <random>
 #include <sstream>
 #include <string>
@@ -17,6 +16,7 @@
 #include <onnxruntime/core/session/onnxruntime_cxx_api.h>
 #include <unsupported/Eigen/CXX11/Tensor>
 #include "demucs.hpp"
+#include "logging.hpp"
 
 namespace demucsonnx {
     Ort::AllocatorWithDefaultOptions allocator;
@@ -65,6 +65,7 @@ bool demucsonnx::load_model(
     }
 
     model.nb_sources = output0_shape[1];
+    DEMUCS_LOG_INFO("Demucs model loaded successfully. Sources: " << model.nb_sources);
     return true;
 }
 
@@ -148,8 +149,6 @@ void demucsonnx::model_inference(
     // now we have the stft, apply the core demucs inference
     // (where we removed the stft/istft to successfully convert to ONNX)
     RunONNXInference(model, buffers);
-
-    std::cout << "ONNX inference completed." << std::endl;
 
     int nb_out_sources = model.nb_sources;
 
