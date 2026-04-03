@@ -47,7 +47,9 @@ static void reflect_padding(
 Eigen::Tensor3dXf demucsonnx::demucs_inference(
     struct demucsonnx::demucs_model &model,
     const Eigen::MatrixXf &audio,
-    demucsonnx::ProgressCallback cb)
+    demucsonnx::ProgressCallback cb,
+    Ort::RunOptions &run_options,
+    Ort::AllocatorWithDefaultOptions &allocator)
 {
     int length = audio.cols();
     int max_shift = static_cast<int>(demucsonnx::MAX_SHIFT_SECS * demucsonnx::SUPPORTED_SAMPLE_RATE);
@@ -82,7 +84,7 @@ Eigen::Tensor3dXf demucsonnx::demucs_inference(
     int nb_out_sources = model.nb_sources;
 
     // Create reusable buffers with padded sizes
-    demucsonnx::demucs_segment_buffers buffers(2, segment_samples, nb_out_sources);
+    demucsonnx::demucs_segment_buffers buffers(2, segment_samples, nb_out_sources, allocator);
     demucsonnx::stft_buffers stft_buf(buffers.padded_segment_samples);
 
     // Calculate stride for overlapping segments
@@ -135,7 +137,7 @@ Eigen::Tensor3dXf demucsonnx::demucs_inference(
         reflect_padding(buffers.padded_mix, buffers.pad, buffers.pad_end, segment_samples);
 
         // Run model inference
-        demucsonnx::model_inference(model, buffers, stft_buf);
+        demucsonnx::model_inference(model, buffers, stft_buf, run_options);
 
         // Update progress
         cb(inference_progress + increment_per_chunk, "Segment inference complete");

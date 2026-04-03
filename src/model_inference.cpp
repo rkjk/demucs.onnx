@@ -19,32 +19,31 @@
 #include "logging.hpp"
 
 namespace demucsonnx {
-    Ort::AllocatorWithDefaultOptions allocator;
-    Ort::RunOptions run_options;
-}
 
 // Core function to create and load model from in-memory data (byte array)
-bool demucsonnx::load_model(
+bool load_model(
     const char* model_data,
     int n_bytes,
-    struct demucsonnx::demucs_model &model,
-    Ort::SessionOptions &session_options)
+    struct demucs_model &model,
+    Ort::SessionOptions &session_options,
+    Ort::Env &env,
+    Ort::AllocatorWithDefaultOptions &allocator)
 {
     const uint8_t* final_data = reinterpret_cast<const uint8_t*>(model_data);
     size_t final_size = n_bytes;
 
-    model.sess = std::make_unique<Ort::Session>(model.env, final_data, final_size, session_options);
+    model.sess = std::make_unique<Ort::Session>(env, final_data, final_size, session_options);
 
     std::vector<Ort::AllocatedStringPtr> input_name_allocs;
-    input_name_allocs.push_back(model.sess->GetInputNameAllocated(0, demucsonnx::allocator));
-    input_name_allocs.push_back(model.sess->GetInputNameAllocated(1, demucsonnx::allocator));
+    input_name_allocs.push_back(model.sess->GetInputNameAllocated(0, allocator));
+    input_name_allocs.push_back(model.sess->GetInputNameAllocated(1, allocator));
 
     model.input_names.push_back(input_name_allocs[0].get());  // Store as std::string
     model.input_names.push_back(input_name_allocs[1].get());
 
     std::vector<Ort::AllocatedStringPtr> output_name_allocs;
-    output_name_allocs.push_back(model.sess->GetOutputNameAllocated(0, demucsonnx::allocator));
-    output_name_allocs.push_back(model.sess->GetOutputNameAllocated(1, demucsonnx::allocator));
+    output_name_allocs.push_back(model.sess->GetOutputNameAllocated(0, allocator));
+    output_name_allocs.push_back(model.sess->GetOutputNameAllocated(1, allocator));
 
     model.output_names.push_back(output_name_allocs[0].get());
     model.output_names.push_back(output_name_allocs[1].get());
@@ -70,22 +69,25 @@ bool demucsonnx::load_model(
 }
 
 // Overload for std::vector<char>
-bool demucsonnx::load_model(
+bool load_model(
     const std::vector<char> &model_data,
-    struct demucsonnx::demucs_model &model,
-    Ort::SessionOptions &session_options)
+    struct demucs_model &model,
+    Ort::SessionOptions &session_options,
+    Ort::Env &env,
+    Ort::AllocatorWithDefaultOptions &allocator)
 {
     return load_model(
-        model_data.data(), model_data.size(), model, session_options);
+        model_data.data(), model_data.size(), model, session_options, env, allocator);
 }
 
 void RunONNXInference(
-    struct demucsonnx::demucs_model &model,
-    struct demucsonnx::demucs_segment_buffers &buffers
+    struct demucs_model &model,
+    struct demucs_segment_buffers &buffers,
+    Ort::RunOptions &run_options
 ) {
     // Run the model
     model.sess->Run(
-        demucsonnx::run_options,
+        run_options,
         model.input_names_ptrs.data(),
         buffers.input_tensors.data(),
         buffers.input_tensors.size(),
@@ -96,10 +98,11 @@ void RunONNXInference(
 }
 
 // run core demucs inference using onnx
-void demucsonnx::model_inference(
+void model_inference(
     struct demucsonnx::demucs_model &model,
     struct demucsonnx::demucs_segment_buffers &buffers,
-    struct demucsonnx::stft_buffers &stft_buf)
+    struct demucsonnx::stft_buffers &stft_buf,
+    Ort::RunOptions &run_options)
 {
     // let's get a stereo complex spectrogram first
     demucsonnx::stft(stft_buf, buffers.padded_mix, buffers.z);
@@ -148,7 +151,7 @@ void demucsonnx::model_inference(
 
     // now we have the stft, apply the core demucs inference
     // (where we removed the stft/istft to successfully convert to ONNX)
-    RunONNXInference(model, buffers);
+    RunONNXInference(model, buffers, run_options);
 
     int nb_out_sources = model.nb_sources;
 
@@ -228,3 +231,4 @@ void demucsonnx::model_inference(
         }
     }
 }
+} // namespace demucsonnx

@@ -4,17 +4,13 @@
 #include "dsp.hpp"
 #include "tensor.hpp"
 #include <Eigen/Dense>
-#include <array>
 #include <functional>
-#include <iostream>
 #include <string>
 #include <vector>
 #include <onnxruntime/core/session/onnxruntime_cxx_api.h>
 
 namespace demucsonnx
 {
-extern Ort::AllocatorWithDefaultOptions allocator;
-extern Ort::RunOptions run_options;
 
 // Define a type for your callback function
 using ProgressCallback = std::function<void(float, const std::string &)>;
@@ -25,7 +21,6 @@ const int TIME_BRANCH_LEN_IN = 343980;
 struct demucs_model {
     std::unique_ptr<Ort::Session> sess;        // Smart pointer to allow "empty" state
     int nb_sources = 0;
-    Ort::Env env{ORT_LOGGING_LEVEL_ERROR, "demucs_onnx"}; // Persistent environment
     std::vector<std::string> input_names;      // Persistent input names
     std::vector<std::string> output_names;     // Persistent output names
 
@@ -36,14 +31,13 @@ struct demucs_model {
     demucs_model() = default;
 };
 
-bool load_model(const char *model_data,
-                int n_bytes,
-                struct demucs_model &model,
-                Ort::SessionOptions &session_options);
+bool load_model(const char *model_data, int n_bytes, struct demucs_model &model,
+                Ort::SessionOptions &session_options, Ort::Env &env,
+                Ort::AllocatorWithDefaultOptions &allocator);
 
-bool load_model(const std::vector<char> &model_data,
-                struct demucs_model &model,
-                Ort::SessionOptions &session_options);
+bool load_model(const std::vector<char> &model_data, struct demucs_model &model,
+                Ort::SessionOptions &session_options, Ort::Env &env,
+                Ort::AllocatorWithDefaultOptions &allocator);
 
 struct demucs_segment_buffers
 {
@@ -72,7 +66,7 @@ struct demucs_segment_buffers
 
     // let's do pesky precomputing of the signal repadding to 1/4 hop
     // for time and frequency alignment
-    demucs_segment_buffers(int nb_channels, int segment_samples, int nb_sources)
+    demucs_segment_buffers(int nb_channels, int segment_samples, int nb_sources, Ort::AllocatorWithDefaultOptions &allocator)
         : segment_samples(segment_samples),
           le(int(std::ceil((float)segment_samples / (float)FFT_HOP_SIZE))),
           pad(std::floor((float)FFT_HOP_SIZE / 2.0f) * 3),
@@ -92,25 +86,21 @@ struct demucs_segment_buffers
         // precompute the input tensors
         // inputs in form (xt, x)
         input_tensors.push_back(Ort::Value::CreateTensor<float>(
-            demucsonnx::allocator,
-            xt_onnx_in_shape.data(),
+            allocator, xt_onnx_in_shape.data(),
             xt_onnx_in_shape.size()));
 
         input_tensors.push_back(Ort::Value::CreateTensor<float>(
-            demucsonnx::allocator,
-            x_onnx_in_shape.data(),
+            allocator, x_onnx_in_shape.data(),
             x_onnx_in_shape.size()));
 
         // precompute the output tensors
         // outputs in form (x_out, xt_out)
         output_tensors.push_back(Ort::Value::CreateTensor<float>(
-            demucsonnx::allocator,
-            x_onnx_out_shape.data(),
+            allocator, x_onnx_out_shape.data(),
             x_onnx_out_shape.size()));
 
         output_tensors.push_back(Ort::Value::CreateTensor<float>(
-            demucsonnx::allocator,
-            xt_onnx_out_shape.data(),
+            allocator, xt_onnx_out_shape.data(),
             xt_onnx_out_shape.size()));
     };
 };
@@ -123,11 +113,14 @@ const float TRANSITION_POWER = 1.0;      // transition between segments
 
 Eigen::Tensor3dXf demucs_inference(struct demucs_model &model,
                                    const Eigen::MatrixXf &audio,
-                                   ProgressCallback cb);
+                                   ProgressCallback cb,
+                                   Ort::RunOptions &run_options,
+                                   Ort::AllocatorWithDefaultOptions &allocator);
 
 void model_inference(struct demucs_model &model,
                      struct demucsonnx::demucs_segment_buffers &buffers,
-                     struct demucsonnx::stft_buffers &stft_buf);
+                     struct demucsonnx::stft_buffers &stft_buf,
+                     Ort::RunOptions &run_options);
 } // namespace demucsonnx
 
 #endif // MODEL_HPP
