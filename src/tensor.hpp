@@ -8,7 +8,7 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <vector>
 #include <limits>
-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
+#include "onnxruntime_cxx_api.h"
 
 namespace Eigen
 {

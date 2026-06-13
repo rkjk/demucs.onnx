@@ -13,7 +13,7 @@
 #include <unsupported/Eigen/MatrixFunctions>
 #include <vector>
 #include <Eigen/Dense>
-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
+#include "onnxruntime_cxx_api.h"
 #include <unsupported/Eigen/CXX11/Tensor>
 #include "demucs.hpp"
 #include "logging.hpp"
